@@ -765,6 +765,8 @@ static inline void imxrt_writedtd(struct imxrt_dtd_s *dtd,
 
   up_flush_dcache((uintptr_t)dtd,
                   (uintptr_t)dtd + sizeof(struct imxrt_dtd_s));
+  up_flush_dcache((uintptr_t)data,
+                  (uintptr_t)data + nbytes);
 }
 
 /****************************************************************************
@@ -1710,6 +1712,14 @@ static void imxrt_ep0complete(struct imxrt_usbdev_s *priv, uint8_t epphy)
       break;
 
     case EP0STATE_SHORTREAD:
+
+      /* Make sure we have updated data after the DMA transfer.
+       * This invalidation matches the flush in writedtd().
+       */
+
+      up_invalidate_dcache((uintptr_t)priv->ep0buf,
+                           (uintptr_t)priv->ep0buf + sizeof(priv->ep0buf));
+
       imxrt_dispatchrequest(priv, &priv->ep0ctrl);
       imxrt_ep0state (priv, EP0STATE_WAIT_NAK_IN);
       break;
@@ -1831,8 +1841,14 @@ bool imxrt_epcomplete(struct imxrt_usbdev_s *priv, uint8_t epphy)
       return true;
     }
 
+  /* Make sure we have updated data after the DMA transfer.
+   * This invalidation matches the flush in writedtd().
+   */
+
   up_invalidate_dcache((uintptr_t)dtd,
                        (uintptr_t)dtd + sizeof(struct imxrt_dtd_s));
+  up_invalidate_dcache((uintptr_t)dtd->buffer0,
+                       (uintptr_t)dtd->buffer0 + dtd->xfer_len);
 
   int xfrd = dtd->xfer_len - (dtd->config >> 16);
 
